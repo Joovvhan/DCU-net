@@ -37,33 +37,67 @@ if __name__ == "__main__":
     '''
 
 
+    writer = SummaryWriter()
+    
     l1_loss = nn.L1Loss(reduction='mean')
     l2_loss = nn.MSELoss(reduction='mean')
 
-    model = UNet()
+    signal_model = UNet()
+    noise_model = UNet()
 
-    optimizer = optim.Adam(model.parameters(), lr=0.0001)
+    signal_optimizer = optim.Adam(signal_model.parameters(), lr=0.0001)
+    noise_optimizer = optim.Adam(noise_model.parameters(), lr=0.0001)
     
     steps = 0
 
+    signal_loss_1 = list()
+    signal_loss_2 = list()
+    
+    noise_loss_1 = list()
+    noise_loss_2 = list()
+    
+    
     for i in range(100):
 
         for i, batch in enumerate(dataloader):
             Zxxs, log_spectrograms = batch
 
-            # Zxxs[0].shape
-            # torch.Size([4, 321, 1025, 2])
-            # log_spectrograms[0].shape
-            # torch.Size([4, 321, 1025])
             signal, noise, mixed = log_spectrograms
 
-            output = model(mixed)
+            output = signal_model(mixed)
             loss1 = l1_loss(output, signal)
             loss2 = l2_loss(output, signal)
             loss = loss1 + loss2
             loss.backward()
-            optimizer.step()
-            optimizer.zero_grad()
+            signal_optimizer.step()
+            signal_optimizer.zero_grad()
+            
+            signal_loss_1.append(loss1.item())
+            signal_loss_2.append(loss2.item())
+            
+            output = noise_model(mixed)
+            loss1 = l1_loss(output, noise)
+            loss2 = l2_loss(output, noise)
+            loss = loss1 + loss2
+            loss.backward()
+            noise_optimizer.step()
+            noise_optimizer.zero_grad()
+            
+            noise_loss_1.append(loss1.item())
+            noise_loss_2.append(loss2.item())
 
             steps += 1
+            
+            if steps % 100 == 0:
+                writer.add_scalar('speech/L1', np.mean(signal_loss_1), steps)
+                writer.add_scalar('speech/L2', np.mean(signal_loss_2), steps)
+                writer.add_scalar('noise/L1', np.mean(noise_loss_1), steps)
+                writer.add_scalar('noise/L2', np.mean(noise_loss_2), steps)
+                
+                signal_loss_1 = list()
+                signal_loss_2 = list()
+
+                noise_loss_1 = list()
+                noise_loss_2 = list()
+            
             print(loss.item())
