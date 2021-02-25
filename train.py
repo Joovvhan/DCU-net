@@ -2,7 +2,7 @@ from glob import glob
 import scipy
 import numpy as np
 import matplotlib.pyplot as plt
-from dataloader import MultiStreamLoader, concat_variable_length_files, get_data_loader
+from dataloader import MultiStreamLoader, concat_variable_length_files, get_data_loader, complex_tensor_to_audio
 
 import torch
 from torch import nn
@@ -35,6 +35,8 @@ if __name__ == "__main__":
     In the final layer we use a sigmoid activation function. 
     The model is trained using the ADAM [12] optimizer.
     '''
+    
+    device = 'cuda' if torch.cuda.is_available() else 'cpu'
 
 
     writer = SummaryWriter()
@@ -42,8 +44,8 @@ if __name__ == "__main__":
     l1_loss = nn.L1Loss(reduction='mean')
     l2_loss = nn.MSELoss(reduction='mean')
 
-    signal_model = UNet()
-    noise_model = UNet()
+    signal_model = UNet().to(device)
+    noise_model = UNet().to(device)
 
     signal_optimizer = optim.Adam(signal_model.parameters(), lr=0.0001)
     noise_optimizer = optim.Adam(noise_model.parameters(), lr=0.0001)
@@ -63,6 +65,7 @@ if __name__ == "__main__":
             Zxxs, log_spectrograms = batch
 
             signal, noise, mixed = log_spectrograms
+            signal, noise, mixed = signal.to(device), noise.to(device), mixed.to(device)
 
             output = signal_model(mixed)
             loss1 = l1_loss(output, signal)
@@ -88,11 +91,20 @@ if __name__ == "__main__":
 
             steps += 1
             
-            if steps % 100 == 0:
+            if steps % 10 == 0:
                 writer.add_scalar('speech/L1', np.mean(signal_loss_1), steps)
                 writer.add_scalar('speech/L2', np.mean(signal_loss_2), steps)
                 writer.add_scalar('noise/L1', np.mean(noise_loss_1), steps)
                 writer.add_scalar('noise/L2', np.mean(noise_loss_2), steps)
+                
+                
+                speech = complex_tensor_to_audio(Zxxs[0])[0]
+                background = complex_tensor_to_audio(Zxxs[1])[0]
+                mix = complex_tensor_to_audio(Zxxs[2])[0]
+                
+                writer.add_audio('speech', speech, steps, 22050)
+                writer.add_audio('background', background, steps, 22050)
+                writer.add_audio('mix', mix, steps, 22050)
                 
                 signal_loss_1 = list()
                 signal_loss_2 = list()
