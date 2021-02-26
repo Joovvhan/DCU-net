@@ -66,7 +66,7 @@ class UNet(nn.Module):
             
         output_tensor = input_tensor * tensor
         
-        return output_tensor
+        return output_tensor, tensor.detach()
     
 if __name__ == "__main__":
     model = UNet()
